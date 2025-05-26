@@ -60,6 +60,17 @@ pipeline {
       }
     }
 
+    stage('Configuring server(K8s)') {
+      steps {
+        steps {
+          sh '''
+            cd ansible
+            ansible-playbook -i inventory.ini kube-cluster.yml
+          '''
+        }
+      }
+    }
+
     stage('Deploy to Test (K8s)') {
       steps {
         sh 'kubectl apply -f k8s/test-deployment.yaml'
