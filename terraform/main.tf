@@ -3,7 +3,7 @@ provider "aws" {
 }
 
 resource "aws_key_pair" "medicure_key" {
-  key_name   = "medicure-key-${var.environment}"
+  key_name   = "medicure-key"
   public_key = var.public_key
 }
 

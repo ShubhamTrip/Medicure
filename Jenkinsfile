@@ -23,7 +23,7 @@ pipeline {
     stage('Build Docker Image') {
       steps {
         sh '''
-          docker build -t medicure/myapp:${BUILD_ID} .
+          docker build -t shubhamtrip16/medicure:${BUILD_ID} .
           docker images
         '''
       }
@@ -34,7 +34,6 @@ pipeline {
                withCredentials([usernamePassword(credentialsId: 'dockerhub_id', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                sh '''
                   echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                  docker tag medicure/myapp:${BUILD_ID} shubhamtrip16/medicure:${BUILD_ID}
                   docker push shubhamtrip16/medicure:${BUILD_ID}
                    '''
                 }
@@ -43,7 +42,11 @@ pipeline {
 
     stage('Provision K8s Test Cluster') {
       steps {
-        sh 'terraform apply -auto-approve'
+        sh '''
+          cd terraform
+          terraform init
+          terraform apply -auto-approve
+        '''
         sh 'ansible-playbook kube-cluster.yml -i inventory.ini'
       }
     }
