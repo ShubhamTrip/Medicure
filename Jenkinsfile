@@ -9,7 +9,7 @@ pipeline {
   stages {
     stage('Clone Repo') {
       steps {
-        git 'https://github.com/StarAgileDevOpsTraining/star-agile-health-care.git'
+        git 'https://github.com/ShubhamTrip/Medicure.git'
       }
     }
 
