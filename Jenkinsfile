@@ -43,9 +43,14 @@ pipeline {
     stage('Provision K8s Test Cluster') {
       steps {
         script {
-          // Create terraform.tfvars with the SSH key from Jenkins credentials
-          withCredentials([sshUserPrivateKey(credentialsId: 'jenkins-ssh-key', keyFileVariable: 'SSH_KEY')]) {
-            sh '''  
+          withCredentials([file(credentialsId: 'jenkins-ssh-key', variable: 'SSH_KEY_FILE')]) {
+            sh '''
+              cd terraform
+              # Extract public key from private key
+              ssh-keygen -y -f "$SSH_KEY_FILE" > public_key.pub
+              echo "environment = \\"test\\"" > terraform.tfvars
+              echo "public_key = \\"$(cat public_key.pub)\\"" >> terraform.tfvars
+              
               terraform init
               terraform apply -auto-approve
               
