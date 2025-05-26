@@ -40,6 +40,20 @@ pipeline {
             }
     }
 
+    stage('Install Dependencies') {
+      steps {
+        sh '''
+          # Install kubectl
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/
+          
+          # Verify installations
+          kubectl version --client
+        '''
+      }
+    }
+
     stage('Provision Infra') {
       steps {
         withCredentials([file(credentialsId: 'jenkins-ssh-key', variable: 'SSH_KEY_FILE')]) {
@@ -54,15 +68,19 @@ pipeline {
             terraform init
             terraform apply -auto-approve
             
-            # Get the IP addresses and update Ansible inventory
+            # Create Ansible inventory file
             echo "[master]" > ../ansible/inventory.ini
-            terraform output -raw master_ip >> ../ansible/inventory.ini
+            terraform output -raw master_ip | tr -d '\\n' >> ../ansible/inventory.ini
+            echo " ansible_user=ubuntu ansible_ssh_private_key_file=${SSH_KEY_FILE} ansible_ssh_common_args='-o StrictHostKeyChecking=no'" >> ../ansible/inventory.ini
+            echo "" >> ../ansible/inventory.ini
             echo "[workers]" >> ../ansible/inventory.ini
-            terraform output -json worker_ips | jq -r '.[]' >> ../ansible/inventory.ini
-            echo "[all:vars]" >> ../ansible/inventory.ini
-            echo "ansible_user=ubuntu" >> ../ansible/inventory.ini
-            echo "ansible_ssh_private_key_file=${SSH_KEY_FILE}" >> ../ansible/inventory.ini
-            echo "ansible_ssh_common_args='-o StrictHostKeyChecking=no'" >> ../ansible/inventory.ini
+            terraform output -json worker_ips | jq -r '.[]' | while read ip; do
+              echo "$ip ansible_user=ubuntu ansible_ssh_private_key_file=${SSH_KEY_FILE} ansible_ssh_common_args='-o StrictHostKeyChecking=no'" >> ../ansible/inventory.ini
+            done
+            
+            # Display inventory file for debugging
+            echo "Generated inventory file:"
+            cat ../ansible/inventory.ini
             
             # Clean up sensitive files
             rm public_key.pub
@@ -77,7 +95,10 @@ pipeline {
           sh '''
             cd ansible
             chmod 400 "$SSH_KEY_FILE"
-            ansible-playbook -i inventory.ini kube-cluster.yml
+            # Display ansible version and inventory for debugging
+            ansible --version
+            ansible-inventory --list -i inventory.ini
+            ansible-playbook -i inventory.ini kube-cluster.yml -v
           '''
         }
       }
@@ -85,7 +106,14 @@ pipeline {
 
     stage('Deploy to Test (K8s)') {
       steps {
-        sh 'kubectl apply -f k8s/test-deployment.yaml'
+        sh '''
+          # Configure kubectl with the new cluster
+          mkdir -p ~/.kube
+          scp -o StrictHostKeyChecking=no -i "$SSH_KEY_FILE" ubuntu@$(terraform output -raw master_ip):.kube/config ~/.kube/config
+          
+          # Deploy the application
+          kubectl apply -f k8s/test-deployment.yaml
+        '''
       }
     }
 
