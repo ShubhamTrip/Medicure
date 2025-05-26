@@ -42,11 +42,24 @@ pipeline {
 
     stage('Provision K8s Test Cluster') {
       steps {
-        sh '''
-          cd terraform
-          terraform init
-          terraform apply -auto-approve
-        '''
+        script {
+          // Create terraform.tfvars with the SSH key from Jenkins credentials
+          withCredentials([sshUserPrivateKey(credentialsId: 'jenkins-ssh-key', keyFileVariable: 'SSH_KEY')]) {
+            sh '''
+              cd terraform
+              # Extract public key from private key
+              ssh-keygen -y -f "$SSH_KEY" > public_key.pub
+              echo "environment = \\"test\\"" > terraform.tfvars
+              echo "public_key = \\"$(cat public_key.pub)\\"" >> terraform.tfvars
+              
+              terraform init
+              terraform apply -auto-approve
+              
+              # Clean up sensitive files
+              rm public_key.pub
+            '''
+          }
+        }
         sh 'ansible-playbook kube-cluster.yml -i inventory.ini'
       }
     }
