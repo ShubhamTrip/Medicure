@@ -45,13 +45,7 @@ pipeline {
         script {
           // Create terraform.tfvars with the SSH key from Jenkins credentials
           withCredentials([sshUserPrivateKey(credentialsId: 'jenkins-ssh-key', keyFileVariable: 'SSH_KEY')]) {
-            sh '''
-              cd terraform
-              # Extract public key from private key
-              ssh-keygen -y -f "$SSH_KEY" > public_key.pub
-              echo "environment = \\"test\\"" > terraform.tfvars
-              echo "public_key = \\"$(cat public_key.pub)\\"" >> terraform.tfvars
-              
+            sh '''  
               terraform init
               terraform apply -auto-approve
               
