@@ -43,7 +43,6 @@ pipeline {
     stage('Provision Infra') {
       steps {
         sh '''
-          cd terraform
           terraform init
           terraform apply -auto-approve
         '''
