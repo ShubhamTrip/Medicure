@@ -62,12 +62,10 @@ pipeline {
 
     stage('Configuring server(K8s)') {
       steps {
-        steps {
-          sh '''
-            cd ansible
-            ansible-playbook -i inventory.ini kube-cluster.yml
-          '''
-        }
+        sh '''
+          cd ansible
+          ansible-playbook -i inventory.ini kube-cluster.yml
+        '''
       }
     }
 
