@@ -7,12 +7,11 @@ pipeline {
         SSH_PRIVATE_KEY = credentials('jenkins-ssh-key')
     }
   stages {
-    stage('Clone Repo') {
-      steps {
-        git 'https://github.com/ShubhamTrip/Medicure.git'
-      }
-    }
-
+    stage('Cloning Repo') {
+            steps {
+                git branch: 'master', url: 'https://github.com/ShubhamTrip/Medicure.git'
+                }
+            }
     stage('Build') {
       steps {
         sh 'mvn clean package'
