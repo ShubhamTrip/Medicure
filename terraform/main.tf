@@ -2,11 +2,6 @@ provider "aws" {
   region = "us-east-1"
 }
 
-resource "aws_key_pair" "medicure_key" {
-  key_name   = "medicure-key-${var.environment}"
-  public_key = var.public_key
-}
-
 resource "aws_security_group" "medicure_sg" {
   name        = "medicure_sg"
   description = "Allow SSH and app traffic"
@@ -40,23 +35,23 @@ resource "aws_security_group" "medicure_sg" {
   }
 }
 
-resource "aws_instance" "test_server" {
-  ami           = "ami-084568db4383264d4"  
-  instance_type = "t2.micro"
-  key_name      = aws_key_pair.medicure_key.key_name
+resource "aws_instance" "k8s-master" {
+  ami           = "ami-084568db4383264d4" # Ubuntu 20.04 LTS AMI ID (update as per region)
+  instance_type = "t2.medium"
+  key_name      = "aws_key"
   security_groups = [aws_security_group.medicure_sg.name]
   tags = {
-    Name = "Medicure-Test-Server"
+    Name = "k8s-master"
   }
 }
 
-resource "aws_instance" "prod_server" {
-  count         = var.environment == "prod" ? 1 : 0
-  ami           = "ami-084568db4383264d4"  
-  instance_type = "t2.micro"
-  key_name      = aws_key_pair.medicure_key.key_name
+resource "aws_instance" "k8s-worker" {
+  count         = 1
+  ami           = "ami-084568db4383264d4"
   security_groups = [aws_security_group.medicure_sg.name]
+  instance_type = "t2.medium"
+  key_name      = "aws_key"
   tags = {
-    Name = "Medicure-Prod-Server"
+    Name = "k8s-worker-${count.index}"
   }
 }

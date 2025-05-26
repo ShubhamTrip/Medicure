@@ -1,0 +1,36 @@
+- hosts: all
+  become: yes
+  tasks:
+    - name: Install Docker and Kube dependencies
+      shell: |
+        apt update && apt install -y docker.io apt-transport-https curl
+        curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
+        echo "deb https://apt.kubernetes.io/ kubernetes-xenial main" > /etc/apt/sources.list.d/kubernetes.list
+        apt update && apt install -y kubelet kubeadm kubectl
+        systemctl enable docker
+
+- hosts: master
+  become: yes
+  tasks:
+    - name: Initialize Kubernetes Master
+      shell: kubeadm init --pod-network-cidr=10.244.0.0/16
+
+    - name: Setup kubeconfig
+      shell: mkdir -p $HOME/.kube && cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+
+    - name: Install Flannel
+      shell: kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
+
+    - name: Get join command
+      shell: kubeadm token create --print-join-command
+      register: join_cmd
+
+    - name: Save join command
+      set_fact:
+        join_command: "{{ join_cmd.stdout }}"
+
+- hosts: workers
+  become: yes
+  tasks:
+    - name: Join worker to cluster
+      shell: "{{ hostvars['master']['join_command'] }}"

@@ -1,14 +1,7 @@
-output "test_server_ip" {
-  description = "Public IP of the test server"
-  value       = aws_instance.test_server.public_ip
+output "master_ip" {
+  value = aws_instance.k8s-master.public_ip
 }
 
-output "test_server_instance_id" {
-  description = "Instance ID of the test server"
-  value       = aws_instance.test_server.id
-}
-
-output "prod_server_ip" {
-  description = "Public IP of the prod server"
-  value       = var.environment == "prod" ? aws_instance.prod_server[0].public_ip : null
+output "worker_ips" {
+  value = [for instance in aws_instance.k8s-worker : instance.public_ip]
 }
