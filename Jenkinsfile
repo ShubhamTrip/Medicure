@@ -9,7 +9,7 @@ pipeline {
   stages {
     stage('Cloning Repo') {
             steps {
-                git branch: 'master', url: 'https://github.com/ShubhamTrip/Medicure.git'
+                git branch: 'main', url: 'https://github.com/ShubhamTrip/Medicure.git'
                 }
             }
     stage('Build') {
