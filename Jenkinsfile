@@ -58,11 +58,16 @@ pipeline {
       steps {
         withCredentials([file(credentialsId: 'jenkins-ssh-key', variable: 'SSH_KEY_FILE')]) {
           sh '''
+            # Create a persistent copy of the SSH key
+            mkdir -p ~/.ssh
+            cp "$SSH_KEY_FILE" ~/.ssh/jenkins-ssh-key
+            chmod 600 ~/.ssh/jenkins-ssh-key
+            
             cd terraform
             # Create terraform.tfvars with required variables
             echo 'environment = "test"' > terraform.tfvars
             # Extract public key from private key file and add to terraform.tfvars
-            ssh-keygen -y -f "$SSH_KEY_FILE" > public_key.pub
+            ssh-keygen -y -f ~/.ssh/jenkins-ssh-key > public_key.pub
             echo "public_key = \\"$(cat public_key.pub)\\"" >> terraform.tfvars
             
             terraform init
@@ -71,11 +76,11 @@ pipeline {
             # Create Ansible inventory file
             echo "[master]" > ../ansible/inventory.ini
             terraform output -raw master_ip | tr -d '\\n' >> ../ansible/inventory.ini
-            echo " ansible_user=ubuntu ansible_ssh_private_key_file=${SSH_KEY_FILE} ansible_ssh_common_args='-o StrictHostKeyChecking=no'" >> ../ansible/inventory.ini
+            echo " ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/jenkins-ssh-key ansible_ssh_common_args='-o StrictHostKeyChecking=no'" >> ../ansible/inventory.ini
             echo "" >> ../ansible/inventory.ini
             echo "[workers]" >> ../ansible/inventory.ini
             terraform output -json worker_ips | jq -r '.[]' | while read ip; do
-              echo "$ip ansible_user=ubuntu ansible_ssh_private_key_file=${SSH_KEY_FILE} ansible_ssh_common_args='-o StrictHostKeyChecking=no'" >> ../ansible/inventory.ini
+              echo "$ip ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/jenkins-ssh-key ansible_ssh_common_args='-o StrictHostKeyChecking=no'" >> ../ansible/inventory.ini
             done
             
             # Display inventory file for debugging
@@ -91,16 +96,17 @@ pipeline {
 
     stage('Configuring server(K8s)') {
       steps {
-        withCredentials([file(credentialsId: 'jenkins-ssh-key', variable: 'SSH_KEY_FILE')]) {
-          sh '''
-            cd ansible
-            chmod 400 "$SSH_KEY_FILE"
-            # Display ansible version and inventory for debugging
-            ansible --version
-            ansible-inventory --list -i inventory.ini
-            ansible-playbook -i inventory.ini kube-cluster.yml -v
-          '''
-        }
+        sh '''
+          cd ansible
+          # Verify SSH key exists
+          ls -la ~/.ssh/jenkins-ssh-key
+          
+          # Test SSH connection to hosts
+          ansible all -i inventory.ini -m ping -v
+          
+          # Run the playbook
+          ansible-playbook -i inventory.ini kube-cluster.yml -v
+        '''
       }
     }
 
@@ -109,7 +115,7 @@ pipeline {
         sh '''
           # Configure kubectl with the new cluster
           mkdir -p ~/.kube
-          scp -o StrictHostKeyChecking=no -i "$SSH_KEY_FILE" ubuntu@$(terraform output -raw master_ip):.kube/config ~/.kube/config
+          scp -o StrictHostKeyChecking=no -i ~/.ssh/jenkins-ssh-key ubuntu@$(cd terraform && terraform output -raw master_ip):.kube/config ~/.kube/config
           
           # Deploy the application
           kubectl apply -f k8s/test-deployment.yaml
