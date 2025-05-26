@@ -39,7 +39,7 @@ pipeline {
                    '''
                 }
               }
-        }
+    }
 
  .  stage('Provision K8s Test Cluster') {
       steps {
