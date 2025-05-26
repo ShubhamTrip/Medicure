@@ -5,6 +5,7 @@ pipeline {
         AWS_SECRET_ACCESS_KEY = credentials('aws_cred')
         DOCKER_HUB_CREDENTIALS = credentials('dockerhub_id')
         SSH_PRIVATE_KEY = credentials('jenkins-ssh-key')
+        ANSIBLE_HOST_KEY_CHECKING = 'False'
     }
   stages {
     stage('Cloning Repo') {
@@ -53,6 +54,16 @@ pipeline {
             terraform init
             terraform apply -auto-approve
             
+            # Get the IP addresses and update Ansible inventory
+            echo "[master]" > ../ansible/inventory.ini
+            terraform output -raw master_ip >> ../ansible/inventory.ini
+            echo "[workers]" >> ../ansible/inventory.ini
+            terraform output -json worker_ips | jq -r '.[]' >> ../ansible/inventory.ini
+            echo "[all:vars]" >> ../ansible/inventory.ini
+            echo "ansible_user=ubuntu" >> ../ansible/inventory.ini
+            echo "ansible_ssh_private_key_file=${SSH_KEY_FILE}" >> ../ansible/inventory.ini
+            echo "ansible_ssh_common_args='-o StrictHostKeyChecking=no'" >> ../ansible/inventory.ini
+            
             # Clean up sensitive files
             rm public_key.pub
           '''
@@ -62,10 +73,13 @@ pipeline {
 
     stage('Configuring server(K8s)') {
       steps {
-        sh '''
-          cd ansible
-          ansible-playbook -i inventory.ini kube-cluster.yml
-        '''
+        withCredentials([file(credentialsId: 'jenkins-ssh-key', variable: 'SSH_KEY_FILE')]) {
+          sh '''
+            cd ansible
+            chmod 400 "$SSH_KEY_FILE"
+            ansible-playbook -i inventory.ini kube-cluster.yml
+          '''
+        }
       }
     }
 
