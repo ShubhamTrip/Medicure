@@ -8,17 +8,17 @@ pipeline {
     }
   stages {
     stage('Cloning Repo') {
-            steps {
-                git branch: 'main', url: 'https://github.com/ShubhamTrip/Medicure.git'
-                }
-            }
+      steps {
+        git branch: 'main', url: 'https://github.com/ShubhamTrip/Medicure.git'
+      }
+    }
+
     stage('Build') {
       steps {
         sh 'mvn clean package'
       }
     }
 
-    // Stage 3: Build Docker Image
     stage('Build Docker Image') {
       steps {
         sh '''
@@ -27,7 +27,7 @@ pipeline {
         '''
       }
     }
-    // Stage 4: Push Docker Image to Docker Hub
+
     stage('Docker Push') {
          steps {
                withCredentials([usernamePassword(credentialsId: 'dockerhub_id', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
@@ -41,14 +41,24 @@ pipeline {
 
     stage('Provision Infra') {
       steps {
-        sh '''
-          cd terraform
-          terraform init
-          terraform apply -auto-approve
-        '''
+        withCredentials([file(credentialsId: 'jenkins-ssh-key', variable: 'SSH_KEY_FILE')]) {
+          sh '''
+            cd terraform
+            # Create terraform.tfvars with required variables
+            echo 'environment = "test"' > terraform.tfvars
+            # Extract public key from private key file and add to terraform.tfvars
+            ssh-keygen -y -f "$SSH_KEY_FILE" > public_key.pub
+            echo "public_key = \\"$(cat public_key.pub)\\"" >> terraform.tfvars
+            
+            terraform init
+            terraform apply -auto-approve
+            
+            # Clean up sensitive files
+            rm public_key.pub
+          '''
+        }
       }
     }
-
 
     stage('Deploy to Test (K8s)') {
       steps {
