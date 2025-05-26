@@ -40,28 +40,16 @@ pipeline {
             }
     }
 
-    stage('Provision K8s Test Cluster') {
+    stage('Provision Infra') {
       steps {
-        script {
-          withCredentials([file(credentialsId: 'jenkins-ssh-key', variable: 'SSH_KEY_FILE')]) {
-            sh '''
-              cd terraform
-              # Extract public key from private key
-              ssh-keygen -y -f "$SSH_KEY_FILE" > public_key.pub
-              echo "environment = \\"test\\"" > terraform.tfvars
-              echo "public_key = \\"$(cat public_key.pub)\\"" >> terraform.tfvars
-              
-              terraform init
-              terraform apply -auto-approve
-              
-              # Clean up sensitive files
-              rm public_key.pub
-            '''
-          }
-        }
-        sh 'ansible-playbook kube-cluster.yml -i inventory.ini'
+        sh '''
+          cd terraform
+          terraform init
+          terraform apply -auto-approve
+        '''
       }
     }
+
 
     stage('Deploy to Test (K8s)') {
       steps {
